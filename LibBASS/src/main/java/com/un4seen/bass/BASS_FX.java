@@ -1,444 +1,630 @@
 /*===========================================================================
  BASS_FX 2.4 - Copyright (c) 2002-2019 (: JOBnik! :) [Arthur Aminov, ISRAEL]
-                                                     [http://www.jobnik.org]
-
-      bugs/suggestions/questions:
-        forum  : http://www.un4seen.com/forum/?board=1
-                 http://www.jobnik.org/forums
-        e-mail : bass_fx@jobnik.org
-     --------------------------------------------------
-
- NOTE: This header will work only with BASS_FX version 2.4.12
-       Check www.un4seen.com or www.jobnik.org for any later versions.
-
- * Requires BASS 2.4 (available at http://www.un4seen.com)
+ [http://www.jobnik.org]
+ Bugs/Suggestions/Questions:
+ Forum  : http://www.un4seen.com/forum/?board=1 | http://www.jobnik.org/forums
+ E-mail : bass_fx@jobnik.org
+ NOTE: Works only with BASS_FX 2.4.12+ & BASS 2.4
 ===========================================================================*/
-
 package com.un4seen.bass;
 
-@SuppressWarnings({"all"})
-public class BASS_FX
-{
-	// BASS_CHANNELINFO types
-	public static final int BASS_CTYPE_STREAM_TEMPO = 0x1f200;
-	public static final int BASS_CTYPE_STREAM_REVERSE = 0x1f201;
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 
-	// Tempo / Reverse / BPM / Beat flag
-	public static final int BASS_FX_FREESOURCE = 0x10000;	// Free the source handle as well?
+/**
+ * BASS_FX 音效扩展库 - 基于 BASS 2.4 的音频 DSP 处理、变速、反转、BPM 检测工具类
+ * 核心功能：多通道音效处理、音频变速不变调、反向播放、节拍检测
+ */
+@SuppressWarnings({"unused", "SpellCheckingInspection"})
+public final class BASS_FX {
+    // ========================== 通道类型常量 ==========================
+    /** 变速处理流通道类型 */
+    public static final int BASS_CTYPE_STREAM_TEMPO = 0x1f200;
+    /** 反向播放流通道类型 */
+    public static final int BASS_CTYPE_STREAM_REVERSE = 0x1f201;
 
-	// BASS_FX Version
-	public static native int BASS_FX_GetVersion();
+    // ========================== 全局功能标志 ==========================
+    /** 释放音效句柄时，同时释放源音频通道句柄 */
+    public static final int BASS_FX_FREESOURCE = 0x10000;
 
-	/*===========================================================================
-		DSP (Digital Signal Processing)
-	===========================================================================*/
-	
-	/*
-		Multi-channel order of each channel is as follows:
-		 3 channels       left-front, right-front, center.
-		 4 channels       left-front, right-front, left-rear/side, right-rear/side.
-		 5 channels       left-front, right-front, center, left-rear/side, right-rear/side.
-		 6 channels (5.1) left-front, right-front, center, LFE, left-rear/side, right-rear/side.
-		 8 channels (7.1) left-front, right-front, center, LFE, left-rear/side, right-rear/side, left-rear center, right-rear center.
-	*/
+    // ========================== 多通道映射规则 ==========================
+    // 3ch: 左前、右前、中置
+    // 4ch: 左前、右前、左后/侧、右后/侧
+    // 5ch: 左前、右前、中置、左后/侧、右后/侧
+    // 6ch(5.1): 左前、右前、中置、LFE、左后/侧、右后/侧
+    // 8ch(7.1): 左前、右前、中置、LFE、左后/侧、右后/侧、左后中、右后中
 
-	// DSP channels flags
-	public static final int BASS_BFX_CHANALL = -1;	// all channels at once (as by default)
-	public static final int BASS_BFX_CHANNONE = 0;	// disable an effect for all channels
-	public static final int BASS_BFX_CHAN1 = 1;		// left-front channel
-	public static final int BASS_BFX_CHAN2 = 2;		// right-front channel
-	public static final int BASS_BFX_CHAN3 = 4;		// see above info
-	public static final int BASS_BFX_CHAN4 = 8;		// see above info
-	public static final int BASS_BFX_CHAN5 = 16;	// see above info
-	public static final int BASS_BFX_CHAN6 = 32;	// see above info
-	public static final int BASS_BFX_CHAN7 = 64;	// see above info
-	public static final int BASS_BFX_CHAN8 = 128;	// see above info
+    /** 所有通道同时生效（默认） */
+    public static final int BASS_BFX_CHANALL = -1;
+    /** 禁用所有通道的音效 */
+    public static final int BASS_BFX_CHANNONE = 0;
+    /** 左前通道 */
+    public static final int BASS_BFX_CHAN1 = 1;
+    /** 右前通道 */
+    public static final int BASS_BFX_CHAN2 = 2;
+    /** 中置通道（3/5/6/8ch） */
+    public static final int BASS_BFX_CHAN3 = 4;
+    /** 左后/侧通道（4/5/6/8ch） */
+    public static final int BASS_BFX_CHAN4 = 8;
+    /** 右后/侧通道（4/5/6/8ch） */
+    public static final int BASS_BFX_CHAN5 = 16;
+    /** LFE 低频通道（6/8ch） */
+    public static final int BASS_BFX_CHAN6 = 32;
+    /** 左后中通道（8ch） */
+    public static final int BASS_BFX_CHAN7 = 64;
+    /** 右后中通道（8ch） */
+    public static final int BASS_BFX_CHAN8 = 128;
 
-	// if you have more than 8 channels (7.1), use this function
-	public static int BASS_BFX_CHANNEL_N(int n) { return (1<<((n)-1)); }
+    // ========================== DSP 音效类型常量 ==========================
+    /** 声道音量乒乓切换（多通道） */
+    public static final int BASS_FX_BFX_ROTATE = 0x10000;
+    /** 音量调节（多通道） */
+    public static final int BASS_FX_BFX_VOLUME = 0x10003;
+    /** 峰值均衡器（多通道） */
+    public static final int BASS_FX_BFX_PEAKEQ = 0x10004;
+    /** 声道混合/重映射（多通道） */
+    public static final int BASS_FX_BFX_MIX = 0x10007;
+    /** 动态增益（多通道） */
+    public static final int BASS_FX_BFX_DAMP = 0x10008;
+    /** 自动哇音（多通道） */
+    public static final int BASS_FX_BFX_AUTOWAH = 0x10009;
+    /** 移相器（多通道） */
+    public static final int BASS_FX_BFX_PHASER = 0x1000b;
+    /** 合唱/镶边（多通道，替代废弃的 FLANGER） */
+    public static final int BASS_FX_BFX_CHORUS = 0x1000d;
+    /** 失真（多通道） */
+    public static final int BASS_FX_BFX_DISTORTION = 0x10010;
+    /** 压缩器2代（多通道，替代废弃的 COMPRESSOR） */
+    public static final int BASS_FX_BFX_COMPRESSOR2 = 0x10011;
+    /** 音量包络（多通道） */
+    public static final int BASS_FX_BFX_VOLUME_ENV = 0x10012;
+    /** 双二阶滤波器（多通道，替代废弃的 LPF/APF） */
+    public static final int BASS_FX_BFX_BQF = 0x10013;
+    /** 回声4代（多通道，替代废弃的 ECHO/ECHO2/ECHO3） */
+    public static final int BASS_FX_BFX_ECHO4 = 0x10014;
+    /** 音调偏移（基于FFT，移动端不可用） */
+    public static final int BASS_FX_BFX_PITCHSHIFT = 0x10015;
+    /** 混响（基于Freeverb算法，多通道，替代废弃的 REVERB） */
+    public static final int BASS_FX_BFX_FREEVERB = 0x10016;
 
-	// DSP effects
-	public static final int BASS_FX_BFX_ROTATE = 0x10000;		// A channels volume ping-pong	/ multi channel
-	public static final int BASS_FX_BFX_ECHO = 0x10001;			// Echo							/ 2 channels max	(deprecated)
-	public static final int BASS_FX_BFX_FLANGER = 0x10002;		// Flanger						/ multi channel		(deprecated)
-	public static final int BASS_FX_BFX_VOLUME = 0x10003;		// Volume						/ multi channel
-	public static final int BASS_FX_BFX_PEAKEQ = 0x10004;		// Peaking Equalizer			/ multi channel
-	public static final int BASS_FX_BFX_REVERB = 0x10005;		// Reverb						/ 2 channels max	(deprecated)
-	public static final int BASS_FX_BFX_LPF = 0x10006;			// Low Pass Filter 24dB			/ multi channel		(deprecated)
-	public static final int BASS_FX_BFX_MIX = 0x10007;			// Swap, remap and mix channels	/ multi channel
-	public static final int BASS_FX_BFX_DAMP = 0x10008;			// Dynamic Amplification		/ multi channel
-	public static final int BASS_FX_BFX_AUTOWAH = 0x10009;		// Auto Wah						/ multi channel
-	public static final int BASS_FX_BFX_ECHO2 = 0x1000a;		// Echo 2						/ multi channel		(deprecated)
-	public static final int BASS_FX_BFX_PHASER = 0x1000b;		// Phaser						/ multi channel
-	public static final int BASS_FX_BFX_ECHO3 = 0x1000c;		// Echo 3						/ multi channel		(deprecated)
-	public static final int BASS_FX_BFX_CHORUS = 0x1000d;		// Chorus/Flanger				/ multi channel
-	public static final int BASS_FX_BFX_APF = 0x1000e;			// All Pass Filter				/ multi channel		(deprecated)
-	public static final int BASS_FX_BFX_COMPRESSOR = 0x1000f;	// Compressor					/ multi channel		(deprecated)
-	public static final int BASS_FX_BFX_DISTORTION = 0x10010;	// Distortion					/ multi channel
-	public static final int BASS_FX_BFX_COMPRESSOR2 = 0x10011;	// Compressor 2					/ multi channel
-	public static final int BASS_FX_BFX_VOLUME_ENV = 0x10012;	// Volume envelope				/ multi channel
-	public static final int BASS_FX_BFX_BQF = 0x10013;			// BiQuad filters				/ multi channel
-	public static final int BASS_FX_BFX_ECHO4 = 0x10014;		// Echo 4						/ multi channel
-	public static final int BASS_FX_BFX_PITCHSHIFT = 0x10015;	// Pitch shift using FFT		/ multi channel		(not available on mobile)
-	public static final int BASS_FX_BFX_FREEVERB = 0x10016;		// Reverb using "Freeverb" algo	/ multi channel
+    // ========================== 双二阶滤波器类型 ==========================
+    /** 低通滤波器 */
+    public static final int BASS_BFX_BQF_LOWPASS = 0;
+    /** 高通滤波器 */
+    public static final int BASS_BFX_BQF_HIGHPASS = 1;
+    /** 带通滤波器（0dB峰值增益） */
+    public static final int BASS_BFX_BQF_BANDPASS = 2;
+    /** 带通滤波器（恒定边带增益，峰值增益=Q值） */
+    public static final int BASS_BFX_BQF_BANDPASS_Q = 3;
+    /** 陷波滤波器 */
+    public static final int BASS_BFX_BQF_NOTCH = 4;
+    /** 全通滤波器 */
+    public static final int BASS_BFX_BQF_ALLPASS = 5;
+    /** 峰值均衡滤波器 */
+    public static final int BASS_BFX_BQF_PEAKINGEQ = 6;
+    /** 低架滤波器 */
+    public static final int BASS_BFX_BQF_LOWSHELF = 7;
+    /** 高架滤波器 */
+    public static final int BASS_BFX_BQF_HIGHSHELF = 8;
 
-	/*
-	    Deprecated effects in 2.4.10 version:
-		------------------------------------
-		BASS_FX_BFX_ECHO		-> use BASS_FX_BFX_ECHO4
-		BASS_FX_BFX_ECHO2		-> use BASS_FX_BFX_ECHO4
-		BASS_FX_BFX_ECHO3		-> use BASS_FX_BFX_ECHO4
-		BASS_FX_BFX_REVERB		-> use BASS_FX_BFX_FREEVERB
-		BASS_FX_BFX_FLANGER		-> use BASS_FX_BFX_CHORUS
-		BASS_FX_BFX_COMPRESSOR	-> use BASS_FX_BFX_COMPRESSOR2
-		BASS_FX_BFX_APF			-> use BASS_FX_BFX_BQF with BASS_BFX_BQF_ALLPASS filter
-		BASS_FX_BFX_LPF			-> use 2x BASS_FX_BFX_BQF with BASS_BFX_BQF_LOWPASS filter and appropriate fQ values
-	*/
+    // ========================== Freeverb 混响模式 ==========================
+    /** 冻结混响模式 */
+    public static final int BASS_BFX_FREEVERB_MODE_FREEZE = 1;
 
-	// Rotate
-	public static class BASS_BFX_ROTATE {
-		public float fRate;						// rotation rate/speed in Hz (A negative rate can be used for reverse direction)
-		public int	 lChannel;					// BASS_BFX_CHANxxx flag/s (supported only even number of channels)
-	}
+    // ========================== 变速属性常量 ==========================
+    /** 变速倍率属性（通过 BASS_ChannelSet/GetAttribute 访问） */
+    public static final int BASS_ATTRIB_TEMPO = 0x10000;
+    /** 音调偏移属性 */
+    public static final int BASS_ATTRIB_TEMPO_PITCH = 0x10001;
+    /** 采样率偏移属性 */
+    public static final int BASS_ATTRIB_TEMPO_FREQ = 0x10002;
 
-	// Echo (deprecated)
-	public static class BASS_BFX_ECHO {
-		public float fLevel;					// [0....1....n] linear
-		public int   lDelay;					// [1200..30000]
-	}
+    /** 变速算法：线性插值（性能高，音质一般） */
+    public static final int BASS_FX_TEMPO_ALGO_LINEAR = 0x200;
+    /** 变速算法：立方插值（默认，音质平衡） */
+    public static final int BASS_FX_TEMPO_ALGO_CUBIC = 0x400;
+    /** 变速算法：香农插值（音质高，性能消耗大） */
+    public static final int BASS_FX_TEMPO_ALGO_SHANNON = 0x800;
 
-	// Flanger (deprecated)
-	public static class BASS_BFX_FLANGER {
-		public float fWetDry;					// [0....1....n] linear
-		public float fSpeed;					// [0......0.09]
-		public int   lChannel;					// BASS_BFX_CHANxxx flag/s
-	}
+    // ========================== 反向播放属性常量 ==========================
+    /** 播放方向属性（通过 BASS_ChannelSet/GetAttribute 访问） */
+    public static final int BASS_ATTRIB_REVERSE_DIR = 0x11000;
+    /** 反向播放 */
+    public static final int BASS_FX_RVS_REVERSE = -1;
+    /** 正向播放 */
+    public static final int BASS_FX_RVS_FORWARD = 1;
 
-	// Volume
-	public static class BASS_BFX_VOLUME {
-		public int	 lChannel;					// BASS_BFX_CHANxxx flag/s or 0 for global volume control
-		public float fVolume;					// [0....1....n] linear
-	}
+    // ========================== BPM 检测标志 ==========================
+    /** 后台检测 BPM（仅 Windows 平台有效） */
+    public static final int BASS_FX_BPM_BKGRND = 1;
+    /** 自动将 BPM 值加倍（当检测值 < minBPM*2 时） */
+    public static final int BASS_FX_BPM_MULT2 = 2;
 
-	// Peaking Equalizer
-	public static class BASS_BFX_PEAKEQ {
-		public int   lBand;						// [0...............n] more bands means more memory & cpu usage
-		public float fBandwidth;				// [0.1...........<10] in octaves - fQ is not in use (Bandwidth has a priority over fQ)
-		public float fQ;						// [0...............1] the EE kinda definition (linear) (if Bandwidth is not in use)
-		public float fCenter;					// [1Hz..<info.freq/2] in Hz
-		public float fGain;						// [-15dB...0...+15dB] in dB (can be above/below these limits)
-		public int   lChannel;					// BASS_BFX_CHANxxx flag/s
-	}
+    // ========================== 私有构造函数：禁止实例化 ==========================
+    private BASS_FX() {
+        throw new UnsupportedOperationException("This class cannot be instantiated");
+    }
 
-	// Reverb (deprecated)
-	public static class BASS_BFX_REVERB {
-		public float fLevel;					// [0....1....n] linear
-		public int   lDelay;					// [1200..10000]
-	}
+    // ========================== 基础方法 ==========================
+    /**
+     * 获取 BASS_FX 版本号
+     * @return 版本号（十六进制格式，如 0x20412 对应 2.4.12）
+     */
+    public static native int BASS_FX_GetVersion();
 
-	// Low Pass Filter (deprecated)
-	public static class BASS_BFX_LPF {
-		public float fResonance;				// [0.01...........10]
-		public float fCutOffFreq;				// [1Hz...info.freq/2] cutoff frequency
-		public int   lChannel;					// BASS_BFX_CHANxxx flag/s
-	}
+    // ========================== 工具方法：分贝与线性音量转换 ==========================
+    /**
+     * 线性音量转分贝（dB）
+     * @param level 线性音量 [0, 1]
+     * @return 分贝值（0dB 为最大音量，负数为衰减）
+     */
+    public static double linear2dB(double level) {
+        return level <= 0 ? -Double.MAX_VALUE : 20 * Math.log10(level);
+    }
 
-	// Swap, remap and mix
-	public static class BASS_BFX_MIX {
-		public int[] lChannel;					// an array of channels to mix using BASS_BFX_CHANxxx flag/s (lChannel[0] is left channel...)
-	}
+    /**
+     * 分贝（dB）转线性音量
+     * @param dB 分贝值（负数为衰减，0dB 为最大）
+     * @return 线性音量 [0, 1]
+     */
+    public static double dB2Linear(double dB) {
+        return Math.pow(10, dB / 20);
+    }
 
-	// Dynamic Amplification
-	public static class BASS_BFX_DAMP {
-		public float fTarget;					// target volume level						[0<......1] linear
-		public float fQuiet; 					// quiet  volume level						[0.......1] linear
-		public float fRate;						// amp adjustment rate						[0.......1] linear
-		public float fGain;						// amplification level						[0...1...n] linear
-		public float fDelay;					// delay in seconds before increasing level	[0.......n] linear
-		public int   lChannel;					// BASS_BFX_CHANxxx flag/s
-	}
+    /**
+     * 获取 N 通道的通道掩码（支持 8 通道以上扩展）
+     * @param n 通道序号（从 1 开始）
+     * @return 通道掩码
+     */
+    public static int getChannelMask(int n) {
+        return n < 1 ? BASS_BFX_CHANNONE : 1 << (n - 1);
+    }
 
-	// Auto Wah
-	public static class BASS_BFX_AUTOWAH {
-		public float fDryMix;					// dry (unaffected) signal mix				[-2......2]
-		public float fWetMix;					// wet (affected) signal mix				[-2......2]
-		public float fFeedback;					// output signal to feed back into input	[-1......1]
-		public float fRate;						// rate of sweep in cycles per second		[0<....<10]
-		public float fRange;					// sweep range in octaves					[0<....<10]
-		public float fFreq;						// base frequency of sweep Hz				[0<...1000]
-		public int   lChannel;					// BASS_BFX_CHANxxx flag/s
-	}
+    // ========================== 变速处理相关方法 ==========================
+    /**
+     * 创建变速处理通道
+     * @param chan 源音频通道句柄
+     * @param flags 标志位（如 BASS_FX_FREESOURCE）
+     * @return 变速通道句柄（失败返回 0）
+     */
+    public static native int BASS_FX_TempoCreate(int chan, int flags);
 
-	// Echo 2 (deprecated)
-	public static class BASS_BFX_ECHO2 {
-		public float fDryMix;					// dry (unaffected) signal mix				[-2......2]
-		public float fWetMix;					// wet (affected) signal mix				[-2......2]
-		public float fFeedback;					// output signal to feed back into input	[-1......1]
-		public float fDelay;					// delay sec								[0<......n]
-		public int   lChannel;					// BASS_BFX_CHANxxx flag/s
-	}
+    /**
+     * 获取变速通道对应的源通道句柄
+     * @param chan 变速通道句柄
+     * @return 源通道句柄（失败返回 0）
+     */
+    public static native int BASS_FX_TempoGetSource(int chan);
 
-	// Phaser
-	public static class BASS_BFX_PHASER {
-		public float fDryMix;					// dry (unaffected) signal mix				[-2......2]
-		public float fWetMix;					// wet (affected) signal mix				[-2......2]
-		public float fFeedback;					// output signal to feed back into input	[-1......1]
-		public float fRate;						// rate of sweep in cycles per second		[0<....<10]
-		public float fRange;					// sweep range in octaves					[0<....<10]
-		public float fFreq;						// base frequency of sweep					[0<...1000]
-		public int   lChannel;					// BASS_BFX_CHANxxx flag/s
-	}
+    /**
+     * 获取变速通道的当前速率比
+     * @param chan 变速通道句柄
+     * @return 速率比（1.0 为原速，>1 加速，<1 减速）
+     */
+    public static native float BASS_FX_TempoGetRateRatio(int chan);
 
-	// Echo 3 (deprecated)
-	public static class BASS_BFX_ECHO3 {
-		public float fDryMix;					// dry (unaffected) signal mix				[-2......2]
-		public float fWetMix;					// wet (affected) signal mix				[-2......2]
-		public float fDelay;					// delay sec								[0<......n]
-		public int   lChannel;					// BASS_BFX_CHANxxx flag/s
-	}
+    // ========================== 反向播放相关方法 ==========================
+    /**
+     * 创建反向播放通道
+     * @param chan 源音频通道句柄
+     * @param decBlock 解码块大小（建议 0.1~1.0 秒）
+     * @param flags 标志位（如 BASS_FX_FREESOURCE）
+     * @return 反向通道句柄（失败返回 0）
+     * @note MOD 格式需配合 BASS_MUSIC_PRESCAN 标志加载
+     */
+    public static native int BASS_FX_ReverseCreate(int chan, float decBlock, int flags);
 
-	// Chorus/Flanger
-	public static class BASS_BFX_CHORUS {
-		public float fDryMix;					// dry (unaffected) signal mix				[-2......2]
-		public float fWetMix;					// wet (affected) signal mix				[-2......2]
-		public float fFeedback;					// output signal to feed back into input	[-1......1]
-		public float fMinSweep;					// minimal delay ms							[0<...6000]
-		public float fMaxSweep;					// maximum delay ms							[0<...6000]
-		public float fRate;						// rate ms/s								[0<...1000]
-		public int   lChannel;					// BASS_BFX_CHANxxx flag/s
-	}
+    /**
+     * 获取反向通道对应的源通道句柄
+     * @param chan 反向通道句柄
+     * @return 源通道句柄（失败返回 0）
+     */
+    public static native int BASS_FX_ReverseGetSource(int chan);
 
-	// All Pass Filter (deprecated)
-	public static class BASS_BFX_APF {
-		public float fGain;						// reverberation time						[-1=<..<=1]
-		public float fDelay;					// delay sec								[0<....<=n]
-		public int   lChannel;					// BASS_BFX_CHANxxx flag/s
-	}
+    // ========================== BPM 检测相关方法 ==========================
+    /**
+     * 解码并检测音频 BPM（节拍数/分钟）
+     * @param chan 音频通道句柄
+     * @param startSec 检测起始时间（秒）
+     * @param endSec 检测结束时间（秒）
+     * @param minMaxBPM 最小/最大 BPM 范围（高16位=最大，低16位=最小）
+     * @param flags 标志位（如 BASS_FX_BPM_BKGRND/BASS_FX_BPM_MULT2）
+     * @param progressProc 进度回调（可 null）
+     * @param user 用户自定义参数（传递给回调）
+     * @return 检测到的 BPM 值（失败返回 0）
+     */
+    public static native float BASS_FX_BPM_DecodeGet(int chan, double startSec, double endSec,
+                                                    int minMaxBPM, int flags,
+                                                    @Nullable BPMPROGRESSPROC progressProc,
+                                                    @Nullable Object user);
 
-	// Compressor (deprecated)
-	public static class BASS_BFX_COMPRESSOR {
-		public float fThreshold;				// compressor threshold						[0<=...<=1]
-		public float fAttacktime;				// attack time ms							[0<.<=1000]
-		public float fReleasetime;				// release time ms							[0<.<=5000]
-		public int   lChannel;					// BASS_BFX_CHANxxx flag/s
-	}
+    /**
+     * 设置 BPM 实时检测回调
+     * @param handle BPM 检测句柄
+     * @param proc BPM 回调函数
+     * @param period 检测周期（秒）
+     * @param minMaxBPM 最小/最大 BPM 范围
+     * @param flags 标志位
+     * @param user 用户自定义参数
+     * @return 是否成功
+     */
+    public static native boolean BASS_FX_BPM_CallbackSet(int handle, @NonNull BPMPROC proc,
+                                                        double period, int minMaxBPM, int flags,
+                                                        @Nullable Object user);
 
-	// Distortion
-	public static class BASS_BFX_DISTORTION {
-		public float fDrive;					// distortion drive							[0<=...<=5]
-		public float fDryMix;					// dry (unaffected) signal mix				[-5<=..<=5]
-		public float fWetMix;					// wet (affected) signal mix				[-5<=..<=5]
-		public float fFeedback;					// output signal to feed back into input	[-1<=..<=1]
-		public float fVolume;					// distortion volume						[0=<...<=2]
-		public int   lChannel;					// BASS_BFX_CHANxxx flag/s
-	}
+    /**
+     * 重置 BPM 检测回调
+     * @param handle BPM 检测句柄
+     * @return 是否成功
+     */
+    public static native boolean BASS_FX_BPM_CallbackReset(int handle);
 
-	// Compressor 2
-	public static class BASS_BFX_COMPRESSOR2 {
-		public float fGain;						// output gain of signal after compression	[-60....60] in dB
-		public float fThreshold;				// point at which compression begins		[-60.....0] in dB
-		public float fRatio;					// compression ratio						[1.......n]
-		public float fAttack;					// attack time in ms						[0.01.1000]
-		public float fRelease;					// release time in ms						[0.01.5000]
-		public int   lChannel;					// BASS_BFX_CHANxxx flag/s
-	}
+    /**
+     * 释放 BPM 检测句柄
+     * @param handle BPM 检测句柄
+     * @return 是否成功
+     */
+    public static native boolean BASS_FX_BPM_Free(int handle);
 
-	// Volume envelope
-	public static class BASS_BFX_VOLUME_ENV {
-		public int                 lChannel;	// BASS_BFX_CHANxxx flag/s
-		public int                 lNodeCount;	// number of nodes
-		public BASS_BFX_ENV_NODE[] pNodes;		// the nodes
-		public boolean             bFollow;		// follow source position
-	}
+    // ========================== 节拍触发相关方法 ==========================
+    /**
+     * 设置节拍位置触发回调
+     * @param handle BPM 检测句柄
+     * @param proc 节拍回调函数
+     * @param user 用户自定义参数
+     * @return 是否成功
+     */
+    public static native boolean BASS_FX_BPM_BeatCallbackSet(int handle, @NonNull BPMBEATPROC proc,
+                                                            @Nullable Object user);
 
-	public static class BASS_BFX_ENV_NODE {
-		public double pos;						// node position in seconds (1st envelope node must be at position 0)
-		public float  val;						// node value
-	}
+    /**
+     * 重置节拍触发回调
+     * @param handle BPM 检测句柄
+     * @return 是否成功
+     */
+    public static native boolean BASS_FX_BPM_BeatCallbackReset(int handle);
 
-	// BiQuad Filters
-	public static final int	BASS_BFX_BQF_LOWPASS = 0;
-	public static final int	BASS_BFX_BQF_HIGHPASS = 1;
-	public static final int	BASS_BFX_BQF_BANDPASS = 2;			// constant 0 dB peak gain
-	public static final int	BASS_BFX_BQF_BANDPASS_Q = 3;		// constant skirt gain, peak gain = Q
-	public static final int	BASS_BFX_BQF_NOTCH = 4;
-	public static final int	BASS_BFX_BQF_ALLPASS = 5;
-	public static final int	BASS_BFX_BQF_PEAKINGEQ = 6;
-	public static final int	BASS_BFX_BQF_LOWSHELF = 7;
-	public static final int	BASS_BFX_BQF_HIGHSHELF = 8;
+    /**
+     * 解码并检测节拍位置
+     * @param chan 音频通道句柄
+     * @param startSec 起始时间（秒）
+     * @param endSec 结束时间（秒）
+     * @param flags 标志位
+     * @param proc 节拍回调函数
+     * @param user 用户自定义参数
+     * @return 是否成功
+     */
+    public static native boolean BASS_FX_BPM_BeatDecodeGet(int chan, double startSec, double endSec,
+                                                          int flags, @NonNull BPMBEATPROC proc,
+                                                          @Nullable Object user);
 
-	public static class BASS_BFX_BQF {
-		public int   lFilter;					// BASS_BFX_BQF_xxx filter types
-		public float fCenter;					// [1Hz..<info.freq/2] Cutoff (central) frequency in Hz
-		public float fGain;						// [-15dB...0...+15dB] Used only for PEAKINGEQ and Shelving filters in dB (can be above/below these limits)
-		public float fBandwidth;				// [0.1...........<10] Bandwidth in octaves (fQ is not in use (fBandwidth has a priority over fQ))
-												// 						(between -3 dB frequencies for BANDPASS and NOTCH or between midpoint
-												// 						(fGgain/2) gain frequencies for PEAKINGEQ)
-		public float fQ;						// [0.1.....1.......n] The EE kinda definition (linear) (if fBandwidth is not in use)
-		public float fS;						// [0.1.....1.......n] A "shelf slope" parameter (linear) (used only with Shelving filters)
-												// 						when fS = 1, the shelf slope is as steep as you can get it and remain monotonically
-												// 						increasing or decreasing gain with frequency.
-		public int   lChannel;					// BASS_BFX_CHANxxx flag/s
-	}
+    /**
+     * 设置节拍检测参数
+     * @param handle BPM 检测句柄
+     * @param bandwidth 带宽（Hz）
+     * @param centerfreq 中心频率（Hz）
+     * @param beatRtime 节拍响应时间（秒）
+     * @return 是否成功
+     */
+    public static native boolean BASS_FX_BPM_BeatSetParameters(int handle, float bandwidth,
+                                                              float centerfreq, float beatRtime);
 
-	// Echo 4
-	public static class BASS_BFX_ECHO4 {
-		public float   fDryMix;					// dry (unaffected) signal mix				[-2.......2]
-		public float   fWetMix;					// wet (affected) signal mix				[-2.......2]
-		public float   fFeedback;				// output signal to feed back into input	[-1.......1]
-		public float   fDelay;					// delay sec								[0<.......n]
-		public boolean bStereo;					// echo adjoining channels to each other	[TRUE/FALSE]
-		public int     lChannel;				// BASS_BFX_CHANxxx flag/s
-	}
+    /**
+     * 获取节拍检测参数
+     * @param handle BPM 检测句柄
+     * @param bandwidth 输出参数：带宽
+     * @param centerfreq 输出参数：中心频率
+     * @param beatRtime 输出参数：节拍响应时间
+     * @return 是否成功
+     */
+    public static native boolean BASS_FX_BPM_BeatGetParameters(int handle,
+                                                              @NonNull Float[] bandwidth,
+                                                              @NonNull Float[] centerfreq,
+                                                              @NonNull Float[] beatRtime);
 
-	// Pitch shift (not available on mobile)
-	public static class BASS_BFX_PITCHSHIFT {
-		public float fPitchShift;				// A factor value which is between 0.5 (one octave down) and 2 (one octave up) (1 won't change the pitch) [1 default]
-												// (fSemitones is not in use, fPitchShift has a priority over fSemitones)
-		public float fSemitones;				// Semitones (0 won't change the pitch) [0 default]
-		public int   lFFTsize;					// Defines the FFT frame size used for the processing. Typical values are 1024, 2048 and 4096 [2048 default]
-												// It may be any value <= 8192 but it MUST be a power of 2
-		public int   lOsamp;					// Is the STFT oversampling factor which also determines the overlap between adjacent STFT frames [8 default]
-												// It should at least be 4 for moderate scaling ratios. A value of 32 is recommended for best quality (better quality = higher CPU usage)
-		public int   lChannel;					// BASS_BFX_CHANxxx flag/s
-	}
+    /**
+     * 释放节拍检测句柄
+     * @param handle 节拍检测句柄
+     * @return 是否成功
+     */
+    public static native boolean BASS_FX_BPM_BeatFree(int handle);
 
-	// Freeverb
-	public static final int	BASS_BFX_FREEVERB_MODE_FREEZE = 1;
+    // ========================== 回调接口定义 ==========================
+    /**
+     * BPM 检测结果回调接口
+     */
+    @FunctionalInterface
+    public interface BPMPROC {
+        /**
+         * @param chan 音频通道句柄
+         * @param bpm 检测到的 BPM 值
+         * @param user 用户自定义参数
+         */
+        void onBpmDetected(int chan, float bpm, @Nullable Object user);
+    }
 
-	public static class BASS_BFX_FREEVERB {
-		public float fDryMix;					// dry (unaffected) signal mix				[0........1], def. 0
-		public float fWetMix;					// wet (affected) signal mix				[0........3], def. 1.0f
-		public float fRoomSize;					// room size								[0........1], def. 0.5f
-		public float fDamp;						// damping									[0........1], def. 0.5f
-		public float fWidth;					// stereo width								[0........1], def. 1
-		public int   lMode;						// 0 or BASS_BFX_FREEVERB_MODE_FREEZE, def. 0 (no freeze)
-		public int   lChannel;					// BASS_BFX_CHANxxx flag/s
-	}
+    /**
+     * BPM 检测进度回调接口
+     */
+    @FunctionalInterface
+    public interface BPMPROGRESSPROC {
+        /**
+         * @param chan 音频通道句柄
+         * @param percent 检测进度（0~100）
+         * @param user 用户自定义参数
+         */
+        void onProgress(int chan, float percent, @Nullable Object user);
+    }
 
-	/*===========================================================================
-		set dsp fx			- BASS_ChannelSetFX
-		remove dsp fx		- BASS_ChannelRemoveFX
-		set parameters		- BASS_FXSetParameters
-		retrieve parameters - BASS_FXGetParameters
-		reset the state		- BASS_FXReset
-	===========================================================================*/
+    /**
+     * 节拍位置触发回调接口
+     */
+    @FunctionalInterface
+    public interface BPMBEATPROC {
+        /**
+         * @param chan 音频通道句柄
+         * @param beatpos 节拍位置（秒）
+         * @param user 用户自定义参数
+         */
+        void onBeatDetected(int chan, double beatpos, @Nullable Object user);
+    }
 
-	/*===========================================================================
-		Tempo, Pitch scaling and Sample rate changers
-	===========================================================================*/
-	
-	// NOTE: Enable Tempo supported flags in BASS_FX_TempoCreate and the others to source handle.
+    // ========================== 音效参数实体类 ==========================
+    /**
+     * 声道音量乒乓切换参数
+     */
+    public static class BASS_BFX_ROTATE {
+        /** 旋转速率（Hz），负数为反向旋转 */
+        public float fRate;
+        /** 生效通道掩码（仅支持偶数通道数） */
+        public int lChannel = BASS_BFX_CHANALL;
+    }
 
-	// tempo attributes (BASS_ChannelSet/GetAttribute)
-	public static final int BASS_ATTRIB_TEMPO = 0x10000;
-	public static final int BASS_ATTRIB_TEMPO_PITCH = 0x10001;
-	public static final int BASS_ATTRIB_TEMPO_FREQ = 0x10002;
+    /**
+     * 音量调节参数
+     */
+    public static class BASS_BFX_VOLUME {
+        /** 生效通道掩码（0 为全局音量） */
+        public int lChannel = BASS_BFX_CHANALL;
+        /** 线性音量 [0, 1]，大于1为增益 */
+        public float fVolume = 1.0f;
+    }
 
-	// tempo attributes options
-	public static final int BASS_ATTRIB_TEMPO_OPTION_USE_AA_FILTER = 0x10010;		// TRUE (default) / FALSE (default for multi-channel on mobile devices for lower CPU usage)
-	public static final int BASS_ATTRIB_TEMPO_OPTION_AA_FILTER_LENGTH = 0x10011;	// 32 default (8 .. 128 taps)
-	public static final int BASS_ATTRIB_TEMPO_OPTION_USE_QUICKALGO = 0x10012;		// TRUE (default on mobile devices for lower CPU usage) / FALSE (default)
-	public static final int BASS_ATTRIB_TEMPO_OPTION_SEQUENCE_MS = 0x10013;			// 82 default, 0 = automatic
-	public static final int BASS_ATTRIB_TEMPO_OPTION_SEEKWINDOW_MS = 0x10014;		// 28 default, 0 = automatic
-	public static final int BASS_ATTRIB_TEMPO_OPTION_OVERLAP_MS = 0x10015;			// 8  default
-	public static final int BASS_ATTRIB_TEMPO_OPTION_PREVENT_CLICK = 0x10016;		// TRUE / FALSE (default)
-	// tempo algorithm flags
-	public static final int BASS_FX_TEMPO_ALGO_LINEAR = 0x200;
-	public static final int BASS_FX_TEMPO_ALGO_CUBIC = 0x400;						// default
-	public static final int BASS_FX_TEMPO_ALGO_SHANNON = 0x800;
+    /**
+     * 峰值均衡器参数
+     */
+    public static class BASS_BFX_PEAKEQ {
+        /** 均衡器频段数（越多音质越好，CPU占用越高） */
+        public int lBand = 8;
+        /** 带宽（倍频程），优先级高于 fQ */
+        public float fBandwidth = 1.0f;
+        /** Q 值（0~1），带宽未设置时生效 */
+        public float fQ = 0.5f;
+        /** 中心频率（Hz），范围 [1, 采样率/2] */
+        public float fCenter = 1000.0f;
+        /** 增益（dB），范围 [-15, 15]，可超出 */
+        public float fGain = 0.0f;
+        /** 生效通道掩码 */
+        public int lChannel = BASS_BFX_CHANALL;
+    }
 
-	public static native int   BASS_FX_TempoCreate(int chan, int flags);
-	public static native int   BASS_FX_TempoGetSource(int chan);
-	public static native float BASS_FX_TempoGetRateRatio(int chan);
+    /**
+     * 声道混合/重映射参数
+     */
+    public static class BASS_BFX_MIX {
+        /** 通道映射数组，索引对应目标通道，值对应源通道掩码 */
+        public int[] lChannel;
+    }
 
-	/*===========================================================================
-		Reverse playback
-	===========================================================================*/
-	
-	// NOTES: 1. MODs won't load without BASS_MUSIC_PRESCAN flag.
-	//		  2. Enable Reverse supported flags in BASS_FX_ReverseCreate and the others to source handle.
+    /**
+     * 动态增益参数
+     */
+    public static class BASS_BFX_DAMP {
+        /** 目标音量 [0, 1] */
+        public float fTarget = 0.8f;
+        /** 静音阈值 [0, 1] */
+        public float fQuiet = 0.2f;
+        /** 增益调整速率 [0, 1] */
+        public float fRate = 0.5f;
+        /** 增益倍数 [0, n] */
+        public float fGain = 1.0f;
+        /** 增益延迟（秒） */
+        public float fDelay = 0.1f;
+        /** 生效通道掩码 */
+        public int lChannel = BASS_BFX_CHANALL;
+    }
 
-	// reverse attribute (BASS_ChannelSet/GetAttribute)
-	public static final int BASS_ATTRIB_REVERSE_DIR = 0x11000;
+    /**
+     * 自动哇音参数
+     */
+    public static class BASS_BFX_AUTOWAH {
+        /** 干声混合比 [-2, 2] */
+        public float fDryMix = 1.0f;
+        /** 湿声混合比 [-2, 2] */
+        public float fWetMix = 1.0f;
+        /** 反馈量 [-1, 1] */
+        public float fFeedback = 0.5f;
+        /** 扫描速率（Hz） [0, 10] */
+        public float fRate = 1.0f;
+        /** 扫描范围（倍频程） [0, 10] */
+        public float fRange = 2.0f;
+        /** 基础频率（Hz） [0, 1000] */
+        public float fFreq = 100.0f;
+        /** 生效通道掩码 */
+        public int lChannel = BASS_BFX_CHANALL;
+    }
 
-	// playback directions
-	public static final int BASS_FX_RVS_REVERSE = -1;
-	public static final int BASS_FX_RVS_FORWARD = 1;
+    /**
+     * 移相器参数
+     */
+    public static class BASS_BFX_PHASER {
+        /** 干声混合比 [-2, 2] */
+        public float fDryMix = 1.0f;
+        /** 湿声混合比 [-2, 2] */
+        public float fWetMix = 1.0f;
+        /** 反馈量 [-1, 1] */
+        public float fFeedback = 0.5f;
+        /** 扫描速率（Hz） [0, 10] */
+        public float fRate = 1.0f;
+        /** 扫描范围（倍频程） [0, 10] */
+        public float fRange = 2.0f;
+        /** 基础频率（Hz） [0, 1000] */
+        public float fFreq = 100.0f;
+        /** 生效通道掩码 */
+        public int lChannel = BASS_BFX_CHANALL;
+    }
 
-	public static native int BASS_FX_ReverseCreate(int chan, float dec_block, int flags);
-	public static native int BASS_FX_ReverseGetSource(int chan);
+    /**
+     * 合唱/镶边参数
+     */
+    public static class BASS_BFX_CHORUS {
+        /** 干声混合比 [-2, 2] */
+        public float fDryMix = 1.0f;
+        /** 湿声混合比 [-2, 2] */
+        public float fWetMix = 1.0f;
+        /** 反馈量 [-1, 1] */
+        public float fFeedback = 0.5f;
+        /** 最小延迟（ms） [0, 6000] */
+        public float fMinSweep = 1.0f;
+        /** 最大延迟（ms） [0, 6000] */
+        public float fMaxSweep = 10.0f;
+        /** 扫描速率（ms/s） [0, 1000] */
+        public float fRate = 10.0f;
+        /** 生效通道掩码 */
+        public int lChannel = BASS_BFX_CHANALL;
+    }
 
-	/*===========================================================================
-		BPM (Beats Per Minute)
-	===========================================================================*/
+    /**
+     * 失真参数
+     */
+    public static class BASS_BFX_DISTORTION {
+        /** 驱动强度 [0, 5] */
+        public float fDrive = 1.0f;
+        /** 干声混合比 [-5, 5] */
+        public float fDryMix = 1.0f;
+        /** 湿声混合比 [-5, 5] */
+        public float fWetMix = 1.0f;
+        /** 反馈量 [-1, 1] */
+        public float fFeedback = 0.5f;
+        /** 输出音量 [0, 2] */
+        public float fVolume = 1.0f;
+        /** 生效通道掩码 */
+        public int lChannel = BASS_BFX_CHANALL;
+    }
 
-	// bpm flags
-	public static final int BASS_FX_BPM_BKGRND = 1;			// if in use, then you can do other processing while detection's in progress. Available only in Windows platforms (BPM/Beat)
-	public static final int BASS_FX_BPM_MULT2 = 2;			// if in use, then will auto multiply bpm by 2 (if BPM < minBPM*2)
+    /**
+     * 压缩器2代参数
+     */
+    public static class BASS_BFX_COMPRESSOR2 {
+        /** 输出增益（dB） [-60, 60] */
+        public float fGain = 0.0f;
+        /** 压缩阈值（dB） [-60, 0] */
+        public float fThreshold = -10.0f;
+        /** 压缩比 [1, n] */
+        public float fRatio = 2.0f;
+        /** 启动时间（ms） [0.01, 1000] */
+        public float fAttack = 10.0f;
+        /** 释放时间（ms） [0.01, 5000] */
+        public float fRelease = 100.0f;
+        /** 生效通道掩码 */
+        public int lChannel = BASS_BFX_CHANALL;
+    }
 
-	// translation options (deprecated)
-	public static final int BASS_FX_BPM_TRAN_X2 = 0;		// multiply the original BPM value by 2 (may be called only once & will change the original BPM as well!)
-	public static final int BASS_FX_BPM_TRAN_2FREQ = 1;		// BPM value to Frequency
-	public static final int BASS_FX_BPM_TRAN_FREQ2 = 2;		// Frequency to BPM value
-	public static final int BASS_FX_BPM_TRAN_2PERCENT = 3;	// BPM value to Percents
-	public static final int BASS_FX_BPM_TRAN_PERCENT2 = 4;	// Percents to BPM value
+    /**
+     * 音量包络节点参数
+     */
+    public static class BASS_BFX_ENV_NODE {
+        /** 节点位置（秒），第一个节点必须为 0 */
+        public double pos;
+        /** 节点音量值（线性） */
+        public float val;
+    }
 
-	public interface BPMPROC
-	{
-		void BPMPROC(int chan, float bpm, Object user);
-	}
+    /**
+     * 音量包络参数
+     */
+    public static class BASS_BFX_VOLUME_ENV {
+        /** 生效通道掩码 */
+        public int lChannel = BASS_BFX_CHANALL;
+        /** 节点数量 */
+        public int lNodeCount;
+        /** 节点数组 */
+        public BASS_BFX_ENV_NODE[] pNodes;
+        /** 是否跟随源音频位置 */
+        public boolean bFollow = true;
+    }
 
-	public interface BPMPROGRESSPROC
-	{
-		void BPMPROGRESSPROC(int chan, float percent, Object user);
-	}
+    /**
+     * 双二阶滤波器参数
+     */
+    public static class BASS_BFX_BQF {
+        /** 滤波器类型 {@link #BASS_BFX_BQF_LOWPASS} 等 */
+        public int lFilter = BASS_BFX_BQF_LOWPASS;
+        /** 中心频率（Hz） [1, 采样率/2] */
+        public float fCenter = 1000.0f;
+        /** 增益（dB），仅峰值/架式滤波器生效 [-15, 15] */
+        public float fGain = 0.0f;
+        /** 带宽（倍频程），优先级高于 fQ [0.1, 10] */
+        public float fBandwidth = 1.0f;
+        /** Q 值，带宽未设置时生效 [0.1, n] */
+        public float fQ = 0.5f;
+        /** 斜率参数，仅架式滤波器生效 [0.1, n] */
+        public float fS = 1.0f;
+        /** 生效通道掩码 */
+        public int lChannel = BASS_BFX_CHANALL;
+    }
 
-	// back-compatibility
-	public interface BPMPROCESSPROC
-	{
-		void BPMPROCESSPROC(int chan, float percent, Object user);
-	}
+    /**
+     * 回声4代参数
+     */
+    public static class BASS_BFX_ECHO4 {
+        /** 干声混合比 [-2, 2] */
+        public float fDryMix = 1.0f;
+        /** 湿声混合比 [-2, 2] */
+        public float fWetMix = 1.0f;
+        /** 反馈量 [-1, 1] */
+        public float fFeedback = 0.5f;
+        /** 延迟时间（秒） [0, n] */
+        public float fDelay = 0.5f;
+        /** 是否开启立体声交叉回声 */
+        public boolean bStereo = true;
+        /** 生效通道掩码 */
+        public int lChannel = BASS_BFX_CHANALL;
+    }
 
-	public static native float   BASS_FX_BPM_DecodeGet(int chan, double startSec, double endSec, int minMaxBPM, int flags, Object proc, Object user);
-	public static native boolean BASS_FX_BPM_CallbackSet(int handle, BPMPROC proc, double period, int minMaxBPM, int flags, Object user);
-	public static native boolean BASS_FX_BPM_CallbackReset(int handle);
-	public static native float   BASS_FX_BPM_Translate(int handle, float val2tran, int trans);	// deprecated
-	public static native boolean BASS_FX_BPM_Free(int handle);
+    /**
+     * 音调偏移参数（移动端不可用）
+     */
+    public static class BASS_BFX_PITCHSHIFT {
+        /** 音调偏移倍数 [0.5, 2]，1 为原调，优先级高于 fSemitones */
+        public float fPitchShift = 1.0f;
+        /** 半音偏移，0 为原调 */
+        public float fSemitones = 0.0f;
+        /** FFT 帧大小（2的幂，<=8192），默认 2048 */
+        public int lFFTsize = 2048;
+        /** 过采样率（>=4），默认 8，32 音质最佳 */
+        public int lOsamp = 8;
+        /** 生效通道掩码 */
+        public int lChannel = BASS_BFX_CHANALL;
+    }
 
-	/*===========================================================================
-		Beat position trigger
-	===========================================================================*/
-
-	public interface BPMBEATPROC
-	{
-		void BPMBEATPROC(int chan, double beatpos, Object user);
-	}
-
-	public static native boolean BASS_FX_BPM_BeatCallbackSet(int handle, BPMBEATPROC proc, Object user);
-	public static native boolean BASS_FX_BPM_BeatCallbackReset(int handle);
-	public static native boolean BASS_FX_BPM_BeatDecodeGet(int chan, double startSec, double endSec, int flags, BPMBEATPROC proc, Object user);
-	public static native boolean BASS_FX_BPM_BeatSetParameters(int handle, float bandwidth, float centerfreq, float beat_rtime);
-	public static native boolean BASS_FX_BPM_BeatGetParameters(int handle, Float bandwidth, Float centerfreq, Float beat_rtime);
-	public static native boolean BASS_FX_BPM_BeatFree(int handle);
-
-	/*===========================================================================
-		Macros
-	===========================================================================*/
-
-	// translate linear level to logarithmic dB
-	public static double BASS_BFX_Linear2dB(double level)
-	{
-		return (20*Math.log10(level));
-	}
-
-	// translate logarithmic dB level to linear
-	public static double BASS_BFX_dB2Linear(double dB)
-	{
-		return (Math.pow(10,(dB)/20));
-	}
-
-	static {
-		System.loadLibrary("bass_fx");
-	}
+    /**
+     * Freeverb 混响参数
+     */
+    public static class BASS_BFX_FREEVERB {
+        /** 干声混合比 [0, 1] */
+        public float fDryMix = 0.0f;
+        /** 湿声混合比 [0, 3] */
+        public float fWetMix = 1.0f;
+        /** 房间大小 [0, 1] */
+        public float fRoomSize = 0.5f;
+        /** 阻尼 [0, 1] */
+        public float fDamp = 0.5f;
+        /** 立体声宽度 [0, 1] */
+        public float fWidth = 1.0f;
+        /** 混响模式 {@link #BASS_BFX_FREEVERB_MODE_FREEZE} */
+        public int lMode = 0;
+        /** 生效通道掩码 */
+        public int lChannel = BASS_BFX_CHANALL;
+    }
 }
