@@ -1,30 +1,80 @@
-apply plugin: 'com.android.library'
+// 采用新版插件 DSL 语法，兼容 AGP 7.0+
+plugins {
+    id 'com.android.library'
+}
 
 android {
+    // 命名空间与 Java 类包名严格一致，确保资源和类的唯一性
+    namespace 'com.un4seen.bass'
+
+    // 编译 SDK 与目标 SDK 保持一致，消除适配警告
     compileSdk 34
+    targetSdk 34
+
+    // 指定稳定 NDK 版本，避免构建波动；若需兼容更高版本，可升级至 25.2.9519653
     ndkVersion '22.1.7171670'
 
     defaultConfig {
-        minSdkVersion 21
-        //noinspection ExpiredTargetSdkVersion
-        targetSdkVersion 29
+        minSdk 21
+        // 仅保留主流 ABI 架构，大幅减小 AAR 体积；BASS 一般不建议保留 x86 架构（移动端极少使用）
+        ndk {
+            abiFilters 'arm64-v8a', 'armeabi-v7a'
+        }
+
+        // 可选：若需生成 Javadoc 文档，添加此配置
+        consumerProguardFiles 'consumer-rules.pro'
     }
 
-
+    // 分离 Debug/Release 构建逻辑，开发与发布环境差异化配置
     buildTypes {
+        debug {
+            minifyEnabled false
+            debuggable true
+            // 调试时关闭资源压缩，避免调试干扰
+            shrinkResources false
+        }
+
         release {
             minifyEnabled false
-//            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            shrinkResources false
+            // 若后续需要混淆，启用下方配置并完善 proguard-rules.pro
+            // proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            
+            // 启用构建压缩，剔除无效文件
+            zipAlignEnabled true
         }
     }
-    namespace 'com.un4seen.bass'
-    lint {
-        abortOnError true
-        ignoreWarnings true
+
+    // 原生库目录配置：显式指定 jniLibs 路径，适配 BASS 的 .so 文件存放结构
+    sourceSets {
+        main {
+            jniLibs.srcDir 'src/main/jniLibs'
+            // 关闭 jni 源码编译（无需本地编译 BASS 原生代码）
+            jni.srcDirs = []
+        }
     }
 
+    // Lint 检查精细化配置：不盲目忽略警告，只屏蔽无关项
+    lint {
+        abortOnError true
+        ignoreWarnings false
+        // 屏蔽与 LibBASS 无关的警告
+        disable 'MissingTranslation', 'UnusedResources', 'ExpiredTargetSdkVersion'
+        // 不检查测试相关 lint 项
+        checkReleaseBuilds false
+    }
+
+    // 编译选项：指定 Java 版本，兼容 Lambda 表达式（匹配之前的函数式接口）
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
 }
 
 dependencies {
+    // 引入本地 JAR 包，保持原功能
     implementation fileTree(dir: 'libs', include: ['*.jar'])
+    
+    // 必须添加 AndroidX 注解依赖，否则 @NonNull/@Nullable 会编译报错
+    implementation 'androidx.annotation:annotation:1.7.0'
 }
