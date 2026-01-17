@@ -1,3 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <!-- 应用名称：对应 LibBASS 音频引擎封装应用，与 native 层 BASS 库对应 -->
     <string name="app_name">LibBASS</string>
 </resources>
